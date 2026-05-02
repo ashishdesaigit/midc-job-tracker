@@ -573,10 +573,17 @@ export default function JobDetail() {
               Dispatch →
             </button>
           ) : (
-            <button onClick={handleAdvance} disabled={advancing}
-              className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-base font-semibold disabled:opacity-50 active:bg-blue-700">
-              {advancing ? 'Updating...' : `Next stage → ${nextStageDef?.name ?? ''}`}
-            </button>
+            <>
+              <button onClick={handleAdvance} disabled={advancing || !!activeSub}
+                className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-base font-semibold disabled:opacity-50 active:bg-blue-700">
+                {advancing ? 'Updating...' : `Next stage → ${nextStageDef?.name ?? ''}`}
+              </button>
+              {activeSub && (
+                <p className="text-xs text-center text-amber-600">
+                  Mark vendor return before moving to next stage
+                </p>
+              )}
+            </>
           )}
           {!isFirstStage && (
             <button onClick={() => setBackConfirmOpen(true)} disabled={advancing}
