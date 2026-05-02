@@ -216,11 +216,10 @@ export default function JobDetail() {
   // ── Stage movement ──────────────────────────────────────────────────────────
 
   function handleAdvance() {
-    const currentIdx = allStages.findIndex(s => s.id === job.current_stage_id)
-    const next = allStages[currentIdx + 1]
-    if (!next) return
+    // Use render-time nextStageDef — already computed with dual-mode currentStageId
+    if (!nextStageDef) return
     setClosingRemark('')
-    setNextStage(next)
+    setNextStage(nextStageDef)
     setConfirmOpen(true)
   }
 
@@ -247,8 +246,8 @@ export default function JobDetail() {
   // ── Back to previous stage ───────────────────────────────────────────────────
 
   async function confirmBack() {
-    const currentIdx = allStages.findIndex(s => s.id === job.current_stage_id)
-    const prev = allStages[currentIdx - 1]
+    // Use render-time prevStageDef — already computed with dual-mode currentStageId
+    const prev = prevStageDef
     if (!prev) return
     setAdvancing(true)
     setBackConfirmOpen(false)
@@ -278,19 +277,25 @@ export default function JobDetail() {
 
     // Delete existing job_stages and recreate
     await supabase.from('job_stages').delete().eq('job_id', id)
-    const { data: inserted } = await supabase.from('job_stages').insert(
+    await supabase.from('job_stages').insert(
       newStages.map((s, idx) => ({ job_id: id, name: s.name.trim(), order_index: idx, is_subcontract: s.is_subcontract }))
-    ).select()
+    )
 
-    // Point current_job_stage_id to the new ID of the current position
-    const newCurrentId = inserted?.[currentIdx]?.id
+    // Re-fetch sorted by order_index — INSERT return order is not guaranteed in PostgreSQL
+    const { data: saved } = await supabase
+      .from('job_stages')
+      .select('id, order_index')
+      .eq('job_id', id)
+      .order('order_index')
+
+    const newCurrentId = saved?.[currentIdx]?.id
     if (newCurrentId) {
       await supabase.from('jobs').update({ current_job_stage_id: newCurrentId }).eq('id', id)
     }
 
     setSavingStages(false)
     setStageEditOpen(false)
-    fetchAll()
+    await fetchAll()
   }
 
   // ── Cancel job ───────────────────────────────────────────────────────────────
