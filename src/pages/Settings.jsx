@@ -101,6 +101,7 @@ export default function Settings() {
 
   async function saveStages() {
     setSaving(true)
+    const insertedIds = []
     for (const [idx, stage] of stages.entries()) {
       if (!stage.name.trim()) continue
       if (isUUID(stage.id)) {
@@ -108,11 +109,14 @@ export default function Settings() {
           .update({ name: stage.name.trim(), is_subcontract: stage.is_subcontract, order_index: idx })
           .eq('id', stage.id)
       } else {
-        await supabase.from('stage_templates')
+        const { data: inserted } = await supabase.from('stage_templates')
           .insert({ unit_id: unit.id, name: stage.name.trim(), is_subcontract: stage.is_subcontract, order_index: idx })
+          .select('id').single()
+        if (inserted) insertedIds.push(inserted.id)
       }
     }
-    const keptIds = stages.filter(s => isUUID(s.id)).map(s => s.id)
+    // Include newly inserted IDs so they aren't deleted in the cleanup below
+    const keptIds = [...stages.filter(s => isUUID(s.id)).map(s => s.id), ...insertedIds]
     const { data: all } = await supabase.from('stage_templates').select('id').eq('unit_id', unit.id)
     for (const row of all ?? []) {
       if (!keptIds.includes(row.id)) {
@@ -172,15 +176,23 @@ export default function Settings() {
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Stage configuration</p>
         {loadingStages ? <p className="text-sm text-gray-400">Loading...</p> : (
           <div className="space-y-2">
+            {/* Draggable stages — all except the last (Dispatch) */}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={stages.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                {stages.map(s => (
+              <SortableContext items={stages.slice(0,-1).map(s => s.id)} strategy={verticalListSortingStrategy}>
+                {stages.slice(0, -1).map(s => (
                   <SortableStageItem key={s.id} stage={s}
                     onChange={updateName} onToggle={toggleVendor} onDelete={deleteStage}
                     canDelete={stages.length > 2} />
                 ))}
               </SortableContext>
             </DndContext>
+            {/* Last stage (Dispatch) — always fixed at bottom, non-editable */}
+            {stages.length > 0 && (
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 opacity-60">
+                <span className="text-gray-300 w-5 h-5 shrink-0 text-center">🔒</span>
+                <span className="flex-1 text-sm text-gray-500">{stages[stages.length - 1]?.name} (fixed last stage)</span>
+              </div>
+            )}
             <button onClick={addStage}
               className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500">
               + Add stage

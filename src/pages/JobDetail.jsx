@@ -102,6 +102,7 @@ export default function JobDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [nextStage, setNextStage] = useState(null)
   const [closingRemark, setClosingRemark] = useState('')
+  const [backConfirmOpen, setBackConfirmOpen] = useState(false)
 
   // Comments
   const [commentText, setCommentText] = useState('')
@@ -113,6 +114,9 @@ export default function JobDetail() {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
+
+  // Vendor section toggle
+  const [vendorExpanded, setVendorExpanded] = useState(false)
 
   // UI
   const [expandedStages, setExpandedStages] = useState({})
@@ -197,6 +201,23 @@ export default function JobDetail() {
     })
 
     setClosingRemark('')
+    await fetchAll()
+    setAdvancing(false)
+  }
+
+  // ── Back to previous stage ───────────────────────────────────────────────────
+
+  async function confirmBack() {
+    const currentIdx = allStages.findIndex(s => s.id === job.current_stage_id)
+    const prev = allStages[currentIdx - 1]
+    if (!prev) return
+    setAdvancing(true)
+    setBackConfirmOpen(false)
+    await supabase.from('jobs').update({ current_stage_id: prev.id }).eq('id', id)
+    await supabase.from('job_stage_log').insert({
+      job_id: id, stage_id: prev.id, stage_name: prev.name,
+      moved_by: user.id, closing_remark: '← Moved back',
+    })
     await fetchAll()
     setAdvancing(false)
   }
@@ -294,7 +315,9 @@ export default function JobDetail() {
   const currentStage = job.stage_templates
   const currentIdx   = allStages.findIndex(s => s.id === job.current_stage_id)
   const nextStageDef = allStages[currentIdx + 1]
+  const prevStageDef = allStages[currentIdx - 1]
   const isLastStage  = currentIdx === allStages.length - 1
+  const isFirstStage = currentIdx === 0
   const due          = dueInfo(job.due_date, job.status)
 
   function subcontractFollowUp() {
@@ -377,46 +400,93 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* Subcontract card */}
+      {/* Subcontract card — collapsible */}
       {currentStage?.is_subcontract && job.status === 'active' && (
-        <div className="bg-white mx-4 mt-3 rounded-xl border border-amber-200 p-4">
-          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3">
-            Vendor stage (optional)
-          </p>
-          {activeSub ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <InfoRow label="Vendor"          value={activeSub.vendors?.name} />
-                <InfoRow label="Challan"         value={activeSub.challan_ref} />
-                <InfoRow label="Qty sent"        value={`${activeSub.qty_sent} pcs`} />
-                <InfoRow label="Sent on"         value={fmt(activeSub.sent_date)} />
-                {activeSub.expected_return && (
-                  <InfoRow label="Expected return" value={fmt(activeSub.expected_return)} />
-                )}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button onClick={subcontractFollowUp}
-                  className="flex-1 py-2.5 border border-amber-300 text-amber-700 rounded-xl text-sm font-medium">
-                  WhatsApp follow up
+        <div className="bg-white mx-4 mt-3 rounded-xl border border-amber-200">
+          <button
+            onClick={() => setVendorExpanded(v => !v)}
+            className="flex items-center justify-between w-full px-4 py-3.5"
+          >
+            <span className="text-sm font-semibold text-amber-700">
+              Outsource to vendor for {currentStage.name}?
+            </span>
+            <svg viewBox="0 0 24 24"
+              className={`w-4 h-4 text-amber-500 transition-transform ${(vendorExpanded || activeSub) ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {(vendorExpanded || activeSub) && (
+            <div className="border-t border-amber-100 p-4">
+              {activeSub ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <InfoRow label="Vendor"          value={activeSub.vendors?.name} />
+                    <InfoRow label="Challan"         value={activeSub.challan_ref} />
+                    <InfoRow label="Qty sent"        value={`${activeSub.qty_sent} pcs`} />
+                    <InfoRow label="Sent on"         value={fmt(activeSub.sent_date)} />
+                    {activeSub.expected_return && (
+                      <InfoRow label="Expected return" value={fmt(activeSub.expected_return)} />
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={subcontractFollowUp}
+                      className="flex-1 py-2.5 border border-amber-300 text-amber-700 rounded-xl text-sm font-medium">
+                      WhatsApp follow up
+                    </button>
+                    <button onClick={() => setReturnOpen(true)}
+                      className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-medium">
+                      Mark returned
+                    </button>
+                  </div>
+                </div>
+              ) : canEdit && (
+                <button onClick={() => navigate(`/jobs/${id}/subcontract`)}
+                  className="w-full py-3 bg-amber-500 text-white rounded-xl text-sm font-semibold">
+                  Send to vendor
                 </button>
-                <button onClick={() => setReturnOpen(true)}
-                  className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-medium">
-                  Mark returned
-                </button>
-              </div>
+              )}
             </div>
-          ) : canEdit && (
-            <button onClick={() => navigate(`/jobs/${id}/subcontract`)}
-              className="w-full py-3 bg-amber-500 text-white rounded-xl text-sm font-semibold">
-              Send to vendor
-            </button>
           )}
         </div>
       )}
 
-      {/* Stage movement button */}
+      {/* Comment / photo section — log important info here */}
       {canEdit && job.status === 'active' && (
-        <div className="mx-4 mt-3">
+        <div className="bg-white mx-4 mt-3 rounded-xl border border-gray-100 p-4">
+          <p className="text-sm font-semibold text-gray-700 mb-0.5">Log important info here</p>
+          <p className="text-xs text-gray-400 mb-3">Quality observations, measurements, issues, photos — anything worth recording at this stage</p>
+          <textarea
+            value={commentText}
+            onChange={e => setCommentText(e.target.value)}
+            placeholder="e.g. Surface finish OK, dimensional check passed, 2 pcs with minor porosity noted..."
+            rows={3}
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          />
+          {commentPreview && (
+            <div className="relative mt-2">
+              <img src={commentPreview} alt="comment preview" className="w-full h-24 object-cover rounded-xl" />
+              <button onClick={() => { setCommentPhoto(null); setCommentPreview('') }}
+                className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center">×</button>
+            </div>
+          )}
+          <div className="flex gap-2 mt-2">
+            <label className="flex items-center justify-center w-11 h-11 border border-gray-200 rounded-xl text-gray-500 text-base shrink-0 cursor-pointer">
+              <input type="file" accept="image/*" onChange={handleCommentPhoto} className="hidden" />
+              📷
+            </label>
+            <button onClick={handleSaveComment}
+              disabled={savingComment || (!commentText.trim() && !commentPhoto)}
+              className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-40">
+              {savingComment ? 'Saving...' : 'Save comment'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Stage navigation — Next + Back */}
+      {canEdit && job.status === 'active' && (
+        <div className="mx-4 mt-3 space-y-2">
           {isLastStage ? (
             <button onClick={() => navigate(`/jobs/${id}/dispatch`)}
               className="w-full py-3.5 bg-green-600 text-white rounded-xl text-base font-semibold active:bg-green-700">
@@ -428,55 +498,12 @@ export default function JobDetail() {
               {advancing ? 'Updating...' : `Next stage → ${nextStageDef?.name ?? ''}`}
             </button>
           )}
-        </div>
-      )}
-
-      {/* Comment input */}
-      {canEdit && job.status === 'active' && (
-        <div className="bg-white mx-4 mt-3 rounded-xl border border-gray-100 p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add comment</p>
-          <textarea
-            value={commentText}
-            onChange={e => setCommentText(e.target.value)}
-            placeholder="Notes, observations, quality remarks..."
-            rows={2}
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-          />
-          {commentPreview && (
-            <div className="relative mt-2">
-              <img src={commentPreview} alt="comment preview" className="w-full h-24 object-cover rounded-xl" />
-              <button onClick={() => { setCommentPhoto(null); setCommentPreview('') }}
-                className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center">
-                ×
-              </button>
-            </div>
-          )}
-          <div className="flex gap-2 mt-2">
-            <label className="flex items-center justify-center w-11 h-11 border border-gray-200 rounded-xl text-gray-500 text-base shrink-0">
-              <input type="file" accept="image/*" onChange={handleCommentPhoto} className="hidden" />
-              📷
-            </label>
-            <button
-              onClick={handleSaveComment}
-              disabled={savingComment || (!commentText.trim() && !commentPhoto)}
-              className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-40"
-            >
-              {savingComment ? 'Saving...' : 'Save comment'}
+          {!isFirstStage && (
+            <button onClick={() => setBackConfirmOpen(true)} disabled={advancing}
+              className="w-full py-3 border border-gray-300 rounded-xl text-sm text-gray-600 disabled:opacity-50">
+              ← Back to {prevStageDef?.name}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Activity — grouped by stage, each collapsible */}
-      {/* Cancel job — owner only, only active jobs */}
-      {user?.role === 'owner' && job.status === 'active' && (
-        <div className="px-4 mt-2 mb-1">
-          <button
-            onClick={() => { setCancelReason(''); setCancelOpen(true) }}
-            className="w-full py-2.5 text-sm text-red-400 border border-red-100 rounded-xl"
-          >
-            Cancel this job
-          </button>
+          )}
         </div>
       )}
 
@@ -551,6 +578,20 @@ export default function JobDetail() {
         </div>
       )}
 
+      {/* Cancel job — owner only, very bottom, subtle */}
+      {user?.role === 'owner' && job.status === 'active' && (
+        <div className="px-4 mt-4 mb-2 text-center">
+          <div className="border-t border-gray-100 pt-4">
+            <button
+              onClick={() => { setCancelReason(''); setCancelOpen(true) }}
+              className="text-xs text-gray-400 underline underline-offset-2"
+            >
+              Cancel this job
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Stage confirmation bottom sheet */}
       <BottomSheet open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <div className="space-y-4 pb-2">
@@ -617,6 +658,26 @@ export default function JobDetail() {
           <button onClick={() => setCancelOpen(false)}
             className="w-full py-3 border border-gray-300 rounded-xl text-base text-gray-700">
             Keep job
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Back to previous stage confirmation */}
+      <BottomSheet open={backConfirmOpen} onClose={() => setBackConfirmOpen(false)}>
+        <div className="space-y-4 pb-2">
+          <div className="text-center">
+            <p className="text-base font-semibold text-gray-900">
+              ← Back to {prevStageDef?.name}
+            </p>
+            <p className="text-sm text-gray-500 mt-1">Move job back to previous stage?</p>
+          </div>
+          <button onClick={confirmBack} disabled={advancing}
+            className="w-full py-3.5 bg-gray-800 text-white rounded-xl text-base font-semibold disabled:opacity-50">
+            Yes, go back
+          </button>
+          <button onClick={() => setBackConfirmOpen(false)}
+            className="w-full py-3 border border-gray-300 rounded-xl text-base text-gray-700">
+            Cancel
           </button>
         </div>
       </BottomSheet>
