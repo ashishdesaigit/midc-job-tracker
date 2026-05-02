@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  /* Stage pill color tokens */
+  --stage-house-bg: #E6F1FB;
+  --stage-house-text: #0C447C;
+  --stage-vendor-bg: #FAEEDA;
+  --stage-vendor-text: #633806;
+  --stage-overdue-bg: #FCEBEB;
+  --stage-overdue-text: #791F1F;
+  --stage-inspect-bg: #EEEDFE;
+  --stage-inspect-text: #3C3489;
+  --stage-done-bg: #EAF3DE;
+  --stage-done-text: #27500A;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: #111827;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  nav        { display: none !important; }
+  body       { background: white; }
+}
