@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -25,7 +25,6 @@ export default function JobDispatch() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user, unit } = useAuthStore()
-  const photoRef = useRef()
 
   const [job, setJob] = useState(null)
   const [dcNumber, setDcNumber] = useState('')
@@ -187,7 +186,6 @@ export default function JobDispatch() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Photo <span className="text-gray-400 font-normal">(optional)</span>
             </label>
-            <input type="file" accept="image/*" ref={photoRef} onChange={handlePhoto} className="hidden" />
             {preview ? (
               <div className="relative">
                 <img src={preview} className="w-full h-36 object-cover rounded-xl" />
@@ -195,10 +193,10 @@ export default function JobDispatch() {
                   className="absolute top-2 right-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">×</button>
               </div>
             ) : (
-              <button onClick={() => photoRef.current.click()}
-                className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500">
+              <label className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500">
+                <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
                 📷 Take photo
-              </button>
+              </label>
             )}
           </div>
         </div>

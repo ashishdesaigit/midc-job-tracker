@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -25,7 +25,6 @@ function ChevronLeft() {
 export default function JobNew() {
   const navigate = useNavigate()
   const { unit, user } = useAuthStore()
-  const photoRef = useRef()
 
   const [form, setForm] = useState({
     customer_id: '', customer_name: '',
@@ -313,10 +312,6 @@ export default function JobNew() {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Photo <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <input
-            type="file" accept="image/*"
-            ref={photoRef} onChange={handlePhoto} className="hidden"
-          />
           {photoPreview ? (
             <div className="relative">
               <img src={photoPreview} alt="preview" className="w-full h-40 object-cover rounded-xl" />
@@ -328,12 +323,10 @@ export default function JobNew() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => photoRef.current.click()}
-              className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 flex items-center justify-center gap-2"
-            >
+            <label className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 flex items-center justify-center gap-2">
+              <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
               📷 Take photo
-            </button>
+            </label>
           )}
         </div>
 

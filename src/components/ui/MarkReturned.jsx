@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { uploadPhoto, photoPath } from '../../lib/photoUpload'
@@ -10,7 +10,6 @@ function today() {
 
 export default function MarkReturned({ open, onClose, subcontract, onComplete }) {
   const { user, unit } = useAuthStore()
-  const photoRef = useRef()
 
   const [form, setForm] = useState({
     qty_received: '',
@@ -167,10 +166,6 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Photo <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <input
-            type="file" accept="image/*"
-            ref={photoRef} onChange={handlePhoto} className="hidden"
-          />
           {preview ? (
             <div className="relative">
               <img src={preview} alt="return" className="w-full h-32 object-cover rounded-xl" />
@@ -180,12 +175,10 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
               >×</button>
             </div>
           ) : (
-            <button
-              onClick={() => photoRef.current.click()}
-              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500"
-            >
+            <label className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500">
+              <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
               📷 Take photo
-            </button>
+            </label>
           )}
         </div>
 

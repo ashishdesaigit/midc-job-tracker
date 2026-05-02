@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -89,7 +89,6 @@ export default function JobDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user, unit } = useAuthStore()
-  const commentPhotoRef = useRef()
 
   const [job, setJob] = useState(null)
   const [allStages, setAllStages] = useState([])
@@ -453,12 +452,10 @@ export default function JobDetail() {
             </div>
           )}
           <div className="flex gap-2 mt-2">
-            <input type="file" accept="image/*"
-              ref={commentPhotoRef} onChange={handleCommentPhoto} className="hidden" />
-            <button onClick={() => commentPhotoRef.current.click()}
-              className="flex items-center justify-center w-11 h-11 border border-gray-200 rounded-xl text-gray-500 text-base shrink-0">
+            <label className="flex items-center justify-center w-11 h-11 border border-gray-200 rounded-xl text-gray-500 text-base shrink-0">
+              <input type="file" accept="image/*" onChange={handleCommentPhoto} className="hidden" />
               📷
-            </button>
+            </label>
             <button
               onClick={handleSaveComment}
               disabled={savingComment || (!commentText.trim() && !commentPhoto)}
