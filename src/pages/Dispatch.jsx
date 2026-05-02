@@ -81,21 +81,9 @@ export default function Dispatch() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  async function markPaid(dispatchId) {
-    await supabase.from('dispatches').update({
-      payment_status: 'paid',
-      paid_at: new Date().toISOString(),
-    }).eq('id', dispatchId)
-    fetchData()
-  }
-
   const filteredDispatches = customerFilter
     ? dispatches.filter(d => d.jobs?.customers?.id === customerFilter)
     : dispatches
-
-  const totalPending = filteredDispatches
-    .filter(d => d.payment_status === 'pending')
-    .reduce((sum, d) => sum + (d.qty_dispatched * (d.jobs?.rate ?? 0)), 0)
 
   return (
     <div className="min-h-svh bg-gray-50">
@@ -183,14 +171,6 @@ export default function Dispatch() {
               </button>
             </div>
 
-            {/* Pending total */}
-            {totalPending > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                <span className="text-sm text-red-700">Payment pending</span>
-                <span className="text-sm font-bold text-red-700">₹{totalPending.toLocaleString('en-IN')}</span>
-              </div>
-            )}
-
             {filteredDispatches.length === 0 ? (
               <EmptyState icon="🚚" message="No dispatches in this period." />
             ) : (
@@ -199,31 +179,16 @@ export default function Dispatch() {
                   const amount = d.jobs?.rate ? d.qty_dispatched * d.jobs.rate : null
                   return (
                     <div key={d.id} className="bg-white border border-gray-100 rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs font-mono text-gray-400">{d.dc_number}</span>
-                            <span className="text-xs text-gray-400">·</span>
-                            <span className="text-xs text-gray-500">{fmtDate(d.dispatch_date)}</span>
-                          </div>
-                          <p className="font-medium text-gray-900 truncate">{d.jobs?.part_name}</p>
-                          <p className="text-sm text-gray-500">{d.jobs?.customers?.name}</p>
-                          <p className="text-sm text-gray-500 mt-0.5">
-                            {d.qty_dispatched} pcs
-                            {amount ? ` · ₹${amount.toLocaleString('en-IN')}` : ''}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => d.payment_status === 'pending' && markPaid(d.id)}
-                          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                            d.payment_status === 'paid'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700 active:bg-red-200'
-                          }`}
-                        >
-                          {d.payment_status === 'paid' ? 'Paid ✓' : 'Pending'}
-                        </button>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-mono text-gray-400">{d.dc_number}</span>
+                        <span className="text-xs text-gray-400">·</span>
+                        <span className="text-xs text-gray-500">{fmtDate(d.dispatch_date)}</span>
                       </div>
+                      <p className="font-medium text-gray-900 truncate">{d.jobs?.part_name}</p>
+                      <p className="text-sm text-gray-500">{d.jobs?.customers?.name}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {d.qty_dispatched} pcs{amount ? ` · ₹${amount.toLocaleString('en-IN')}` : ''}
+                      </p>
                     </div>
                   )
                 })}
