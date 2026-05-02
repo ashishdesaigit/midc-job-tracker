@@ -453,7 +453,7 @@ export default function JobDetail() {
             </div>
           )}
           <div className="flex gap-2 mt-2">
-            <input type="file" accept="image/*" capture="environment"
+            <input type="file" accept="image/*"
               ref={commentPhotoRef} onChange={handleCommentPhoto} className="hidden" />
             <button onClick={() => commentPhotoRef.current.click()}
               className="flex items-center justify-center w-11 h-11 border border-gray-200 rounded-xl text-gray-500 text-base shrink-0">

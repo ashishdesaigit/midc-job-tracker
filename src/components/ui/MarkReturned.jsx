@@ -168,7 +168,7 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
             Photo <span className="text-gray-400 font-normal">(optional)</span>
           </label>
           <input
-            type="file" accept="image/*" capture="environment"
+            type="file" accept="image/*"
             ref={photoRef} onChange={handlePhoto} className="hidden"
           />
           {preview ? (

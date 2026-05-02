@@ -187,7 +187,7 @@ export default function JobDispatch() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Photo <span className="text-gray-400 font-normal">(optional)</span>
             </label>
-            <input type="file" accept="image/*" capture="environment" ref={photoRef} onChange={handlePhoto} className="hidden" />
+            <input type="file" accept="image/*" ref={photoRef} onChange={handlePhoto} className="hidden" />
             {preview ? (
               <div className="relative">
                 <img src={preview} className="w-full h-36 object-cover rounded-xl" />
