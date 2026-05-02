@@ -1,10 +1,50 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { nextJobNumber } from '../lib/numbering'
 import { uploadPhoto, photoPath } from '../lib/photoUpload'
 import BottomSheet from '../components/ui/BottomSheet'
+
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
+      <circle cx="7" cy="5" r="1.5"/><circle cx="13" cy="5" r="1.5"/>
+      <circle cx="7" cy="10" r="1.5"/><circle cx="13" cy="10" r="1.5"/>
+      <circle cx="7" cy="15" r="1.5"/><circle cx="13" cy="15" r="1.5"/>
+    </svg>
+  )
+}
+
+function SortableStageRow({ stage, onChange, onToggle, onDelete, canDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-2 bg-white border rounded-lg px-2 py-2 ${isDragging ? 'shadow-lg border-blue-300' : 'border-gray-200'}`}>
+      <button {...attributes} {...listeners} className="text-gray-300 cursor-grab touch-none shrink-0" tabIndex={-1}>
+        <GripIcon />
+      </button>
+      <input value={stage.name} onChange={e => onChange(stage.id, e.target.value)}
+        className="flex-1 text-sm outline-none bg-transparent" />
+      <label className="flex items-center gap-1 shrink-0 select-none">
+        <input type="checkbox" checked={stage.is_subcontract} onChange={e => onToggle(stage.id, e.target.checked)} className="w-3 h-3 accent-amber-500" />
+        <span className="text-xs text-gray-400">Vendor</span>
+      </label>
+      {canDelete && (
+        <button onClick={() => onDelete(stage.id)} className="text-gray-300 hover:text-red-400 text-base w-5 h-5 flex items-center justify-center shrink-0">×</button>
+      )}
+    </div>
+  )
+}
 
 const MATERIALS = ['Grey Iron', 'SG Iron', 'Steel', 'Aluminium', 'Brass', 'Other']
 
@@ -44,19 +84,38 @@ export default function JobNew() {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
 
+  // Stage customization
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [jobStages, setJobStages] = useState([])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const stageSensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
   useEffect(() => {
     if (!unit?.id) return
-    supabase
-      .from('customers')
-      .select('id, name, phone')
-      .eq('unit_id', unit.id)
-      .eq('is_active', true)
-      .order('name')
-      .then(({ data }) => setCustomers(data ?? []))
+    Promise.all([
+      supabase.from('customers').select('id, name, phone').eq('unit_id', unit.id).eq('is_active', true).order('name'),
+      supabase.from('stage_templates').select('id, name, order_index, is_subcontract').eq('unit_id', unit.id).order('order_index'),
+    ]).then(([{ data: custs }, { data: stages }]) => {
+      setCustomers(custs ?? [])
+      setJobStages((stages ?? []).map(s => ({ ...s, _key: s.id })))
+    })
   }, [unit?.id])
+
+  function updateStageName(id, name) { setJobStages(s => s.map(x => x._key === id ? { ...x, name } : x)) }
+  function toggleStageVendor(id, v)  { setJobStages(s => s.map(x => x._key === id ? { ...x, is_subcontract: v } : x)) }
+  function deleteStage(id)           { setJobStages(s => s.filter(x => x._key !== id)) }
+  function addStage()                { setJobStages(s => [...s, { _key: `n${Date.now()}`, id: `n${Date.now()}`, name: '', is_subcontract: false, order_index: s.length }]) }
+  function handleStageDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    setJobStages(s => arrayMove(s, s.findIndex(x => x._key === active.id), s.findIndex(x => x._key === over.id)))
+  }
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); setError('') }
 
@@ -103,16 +162,13 @@ export default function JobNew() {
 
     try {
       const jobNumber = await nextJobNumber(unit.id)
+      const useCustom = customizeOpen && jobStages.filter(s => s.name.trim()).length >= 2
 
-      const { data: firstStage } = await supabase
-        .from('stage_templates')
-        .select('id, name')
-        .eq('unit_id', unit.id)
-        .order('order_index')
-        .limit(1)
-        .single()
+      // Determine first stage for initial current_stage_id (always needed for fallback)
+      const { data: firstTemplate } = await supabase
+        .from('stage_templates').select('id, name').eq('unit_id', unit.id).order('order_index').limit(1).single()
 
-      if (!firstStage) { setError('Stages not configured. Check settings.'); setLoading(false); return }
+      if (!firstTemplate && !useCustom) { setError('Stages not configured. Check settings.'); setLoading(false); return }
 
       const { data: job, error: jobErr } = await supabase
         .from('jobs')
@@ -129,32 +185,41 @@ export default function JobNew() {
           free_issue: form.free_issue,
           free_issue_qty: form.free_issue && form.free_issue_qty ? parseInt(form.free_issue_qty) : null,
           due_date: form.due_date || null,
-          current_stage_id: firstStage.id,
+          current_stage_id: firstTemplate?.id ?? null,
           remarks: form.remarks.trim() || null,
           created_by: user.id,
         })
-        .select()
-        .single()
+        .select().single()
 
       if (jobErr) throw jobErr
 
-      // Upload photo (non-blocking — job already saved)
+      // Photo upload
       if (photoFile) {
         try {
           const url = await uploadPhoto(photoFile, photoPath(unit.id, job.id, 'sample'))
           await supabase.from('jobs').update({ photo_url: url }).eq('id', job.id)
-        } catch {
-          // Photo upload failed silently — job saved without photo
-        }
+        } catch { /* silent */ }
       }
 
-      // Stage log entry
-      await supabase.from('job_stage_log').insert({
-        job_id: job.id,
-        stage_id: firstStage.id,
-        stage_name: firstStage.name,
-        moved_by: user.id,
-      })
+      if (useCustom) {
+        // Insert job-specific stages
+        const validStages = jobStages.filter(s => s.name.trim())
+        const { data: inserted } = await supabase.from('job_stages').insert(
+          validStages.map((s, idx) => ({ job_id: job.id, name: s.name.trim(), order_index: idx, is_subcontract: s.is_subcontract }))
+        ).select()
+
+        if (inserted?.length) {
+          await supabase.from('jobs').update({ current_job_stage_id: inserted[0].id }).eq('id', job.id)
+          await supabase.from('job_stage_log').insert({
+            job_id: job.id, stage_id: null, stage_name: inserted[0].name, moved_by: user.id,
+          })
+        }
+      } else {
+        // Standard unit stages
+        await supabase.from('job_stage_log').insert({
+          job_id: job.id, stage_id: firstTemplate.id, stage_name: firstTemplate.name, moved_by: user.id,
+        })
+      }
 
       navigate(`/jobs/${job.id}`, { replace: true })
     } catch (e) {
@@ -342,6 +407,49 @@ export default function JobNew() {
             rows={2}
             className="w-full px-4 py-3 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
+        </div>
+
+        {/* Customize stages */}
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setCustomizeOpen(v => !v)}
+            className="flex items-center justify-between w-full px-4 py-3.5 bg-gray-50"
+          >
+            <div className="text-left">
+              <p className="text-sm font-medium text-gray-700">Customize stages for this job</p>
+              <p className="text-xs text-gray-400 mt-0.5">Optional — defaults to unit stages</p>
+            </div>
+            <svg viewBox="0 0 24 24" className={`w-4 h-4 text-gray-400 transition-transform ${customizeOpen ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
+          {customizeOpen && (
+            <div className="px-3 py-3 space-y-2 border-t border-gray-200">
+              <p className="text-xs text-gray-400">Drag to reorder · Last stage (Dispatch) is always fixed</p>
+              <DndContext sensors={stageSensors} collisionDetection={closestCenter} onDragEnd={handleStageDragEnd}>
+                <SortableContext items={jobStages.slice(0,-1).map(s => s._key)} strategy={verticalListSortingStrategy}>
+                  {jobStages.slice(0,-1).map(s => (
+                    <SortableStageRow key={s._key} stage={{ ...s, id: s._key }}
+                      onChange={updateStageName} onToggle={toggleStageVendor} onDelete={deleteStage}
+                      canDelete={jobStages.length > 2} />
+                  ))}
+                </SortableContext>
+              </DndContext>
+              {jobStages.length > 0 && (
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 opacity-50">
+                  <span className="text-gray-300 w-4 text-xs">🔒</span>
+                  <span className="text-sm text-gray-400">{jobStages[jobStages.length-1]?.name} (fixed)</span>
+                </div>
+              )}
+              <button type="button" onClick={addStage}
+                className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400">
+                + Add stage
+              </button>
+            </div>
+          )}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

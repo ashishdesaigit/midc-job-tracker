@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { openWhatsApp } from '../lib/whatsapp'
@@ -7,6 +16,32 @@ import { uploadPhoto } from '../lib/photoUpload'
 import BottomSheet from '../components/ui/BottomSheet'
 import StagePill from '../components/ui/StagePill'
 import MarkReturned from '../components/ui/MarkReturned'
+
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
+      <circle cx="7" cy="5" r="1.5"/><circle cx="13" cy="5" r="1.5"/>
+      <circle cx="7" cy="10" r="1.5"/><circle cx="13" cy="10" r="1.5"/>
+      <circle cx="7" cy="15" r="1.5"/><circle cx="13" cy="15" r="1.5"/>
+    </svg>
+  )
+}
+
+function SortableStageRow({ stage, onChange, onToggle, onDelete, canDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-2 bg-white border rounded-lg px-2 py-2 ${isDragging ? 'shadow-lg border-blue-300' : 'border-gray-200'}`}>
+      <button {...attributes} {...listeners} className="text-gray-300 cursor-grab touch-none shrink-0" tabIndex={-1}><GripIcon /></button>
+      <input value={stage.name} onChange={e => onChange(stage.id, e.target.value)} className="flex-1 text-sm outline-none bg-transparent" />
+      <label className="flex items-center gap-1 shrink-0 select-none">
+        <input type="checkbox" checked={stage.is_subcontract} onChange={e => onToggle(stage.id, e.target.checked)} className="w-3 h-3 accent-amber-500" />
+        <span className="text-xs text-gray-400">Vendor</span>
+      </label>
+      {canDelete && <button onClick={() => onDelete(stage.id)} className="text-gray-300 hover:text-red-400 text-base w-5 h-5 flex items-center justify-center shrink-0">×</button>}
+    </div>
+  )
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +150,17 @@ export default function JobDetail() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
 
+  // Stage editing
+  const [stageEditOpen, setStageEditOpen] = useState(false)
+  const [editFutureStages, setEditFutureStages] = useState([])
+  const [savingStages, setSavingStages] = useState(false)
+
+  const stageSensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
   // Vendor section toggle
   const [vendorExpanded, setVendorExpanded] = useState(false)
 
@@ -129,19 +175,11 @@ export default function JobDetail() {
     const [{ data: j }, { data: log }, { data: cmts }] = await Promise.all([
       supabase
         .from('jobs')
-        .select('*, customers(id, name, phone), stage_templates(id, name, is_subcontract)')
+        .select('*, customers(id, name, phone), stage_templates(id, name, is_subcontract), current_job_stage:job_stages!current_job_stage_id(id, name, is_subcontract)')
         .eq('id', id)
         .single(),
-      supabase
-        .from('job_stage_log')
-        .select('*, users!moved_by(name)')
-        .eq('job_id', id)
-        .order('moved_at', { ascending: false }),
-      supabase
-        .from('job_comments')
-        .select('*, users!created_by(name)')
-        .eq('job_id', id)
-        .order('created_at', { ascending: false }),
+      supabase.from('job_stage_log').select('*, users!moved_by(name)').eq('job_id', id).order('moved_at', { ascending: false }),
+      supabase.from('job_comments').select('*, users!created_by(name)').eq('job_id', id).order('created_at', { ascending: false }),
     ])
 
     if (!j) { setLoading(false); return }
@@ -149,14 +187,14 @@ export default function JobDetail() {
     setStageLog(log ?? [])
     setComments(cmts ?? [])
 
-    const { data: stages } = await supabase
-      .from('stage_templates')
-      .select('id, name, order_index, is_subcontract')
-      .eq('unit_id', j.unit_id)
-      .order('order_index')
+    // Use job_stages if job has custom stages, else fall back to unit stage_templates
+    const { data: stages } = j.current_job_stage_id
+      ? await supabase.from('job_stages').select('id, name, order_index, is_subcontract').eq('job_id', id).order('order_index')
+      : await supabase.from('stage_templates').select('id, name, order_index, is_subcontract').eq('unit_id', j.unit_id).order('order_index')
     setAllStages(stages ?? [])
 
-    if (j.stage_templates?.is_subcontract) {
+    const currentStageData = j.current_job_stage_id ? j.current_job_stage : j.stage_templates
+    if (currentStageData?.is_subcontract) {
       const { data: sub } = await supabase
         .from('subcontracts')
         .select('*, vendors(name, phone)')
@@ -191,10 +229,11 @@ export default function JobDetail() {
     setAdvancing(true)
     setConfirmOpen(false)
 
-    await supabase.from('jobs').update({ current_stage_id: nextStage.id }).eq('id', id)
+    const updateField = isCustomStages ? { current_job_stage_id: nextStage.id } : { current_stage_id: nextStage.id }
+    await supabase.from('jobs').update(updateField).eq('id', id)
     await supabase.from('job_stage_log').insert({
       job_id: id,
-      stage_id: nextStage.id,
+      stage_id: isCustomStages ? null : nextStage.id,
       stage_name: nextStage.name,
       moved_by: user.id,
       closing_remark: closingRemark.trim() || null,
@@ -213,13 +252,45 @@ export default function JobDetail() {
     if (!prev) return
     setAdvancing(true)
     setBackConfirmOpen(false)
-    await supabase.from('jobs').update({ current_stage_id: prev.id }).eq('id', id)
+    const updateField = isCustomStages ? { current_job_stage_id: prev.id } : { current_stage_id: prev.id }
+    await supabase.from('jobs').update(updateField).eq('id', id)
     await supabase.from('job_stage_log').insert({
-      job_id: id, stage_id: prev.id, stage_name: prev.name,
+      job_id: id, stage_id: isCustomStages ? null : prev.id, stage_name: prev.name,
       moved_by: user.id, closing_remark: '← Moved back',
     })
     await fetchAll()
     setAdvancing(false)
+  }
+
+  // ── Edit job stages ──────────────────────────────────────────────────────────
+
+  function openStageEdit() {
+    const future = allStages.slice(currentIdx + 1)
+    setEditFutureStages(future.map(s => ({ ...s })))
+    setStageEditOpen(true)
+  }
+
+  async function saveJobStages() {
+    setSavingStages(true)
+    const completed = allStages.slice(0, currentIdx)
+    const current   = allStages[currentIdx]
+    const newStages = [...completed, current, ...editFutureStages.filter(s => s.name.trim())]
+
+    // Delete existing job_stages and recreate
+    await supabase.from('job_stages').delete().eq('job_id', id)
+    const { data: inserted } = await supabase.from('job_stages').insert(
+      newStages.map((s, idx) => ({ job_id: id, name: s.name.trim(), order_index: idx, is_subcontract: s.is_subcontract }))
+    ).select()
+
+    // Point current_job_stage_id to the new ID of the current position
+    const newCurrentId = inserted?.[currentIdx]?.id
+    if (newCurrentId) {
+      await supabase.from('jobs').update({ current_job_stage_id: newCurrentId }).eq('id', id)
+    }
+
+    setSavingStages(false)
+    setStageEditOpen(false)
+    fetchAll()
   }
 
   // ── Cancel job ───────────────────────────────────────────────────────────────
@@ -312,8 +383,10 @@ export default function JobDetail() {
   )
   if (!job) return <div className="p-8 text-center text-gray-400">Job not found.</div>
 
-  const currentStage = job.stage_templates
-  const currentIdx   = allStages.findIndex(s => s.id === job.current_stage_id)
+  const isCustomStages = !!job.current_job_stage_id
+  const currentStage   = isCustomStages ? job.current_job_stage : job.stage_templates
+  const currentStageId = isCustomStages ? job.current_job_stage_id : job.current_stage_id
+  const currentIdx   = allStages.findIndex(s => s.id === currentStageId)
   const nextStageDef = allStages[currentIdx + 1]
   const prevStageDef = allStages[currentIdx - 1]
   const isLastStage  = currentIdx === allStages.length - 1
@@ -371,7 +444,14 @@ export default function JobDetail() {
       </div>
 
       {/* Stage tracker */}
-      <StageTracker stages={allStages} currentStageId={job.current_stage_id} />
+      <StageTracker stages={allStages} currentStageId={currentStageId} />
+      {canEdit && job.status === 'active' && (
+        <div className="bg-white border-b border-gray-100 px-4 py-2 flex justify-end">
+          <button onClick={openStageEdit} className="text-xs text-blue-600 font-medium">
+            Edit stages
+          </button>
+        </div>
+      )}
 
       {/* Job info */}
       <div className="bg-white mx-4 mt-4 rounded-xl border border-gray-100 p-4">
@@ -658,6 +738,59 @@ export default function JobDetail() {
           <button onClick={() => setCancelOpen(false)}
             className="w-full py-3 border border-gray-300 rounded-xl text-base text-gray-700">
             Keep job
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Edit job stages */}
+      <BottomSheet open={stageEditOpen} onClose={() => setStageEditOpen(false)} title="Edit stages for this job">
+        <div className="space-y-3 pb-2">
+          <p className="text-xs text-gray-400">Completed stages are locked. You can edit, reorder, add or remove future stages only.</p>
+
+          {/* Locked completed stages */}
+          {allStages.slice(0, currentIdx).map((s, i) => (
+            <div key={s.id} className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 opacity-50">
+              <span className="text-xs text-gray-400 w-4">{i+1}</span>
+              <span className="flex-1 text-sm text-gray-400">{s.name}</span>
+              <span className="text-xs text-gray-300">done</span>
+            </div>
+          ))}
+
+          {/* Current stage — locked */}
+          {allStages[currentIdx] && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <span className="text-xs text-blue-400 w-4">{currentIdx+1}</span>
+              <span className="flex-1 text-sm font-medium text-blue-700">{allStages[currentIdx].name}</span>
+              <span className="text-xs text-blue-400">current</span>
+            </div>
+          )}
+
+          {/* Editable future stages */}
+          <DndContext sensors={stageSensors} collisionDetection={closestCenter}
+            onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return
+              setEditFutureStages(s => arrayMove(s, s.findIndex(x => x.id === active.id), s.findIndex(x => x.id === over.id)))
+            }}>
+            <SortableContext items={editFutureStages.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              {editFutureStages.map(s => (
+                <SortableStageRow key={s.id} stage={s}
+                  onChange={(id, name) => setEditFutureStages(fs => fs.map(x => x.id === id ? { ...x, name } : x))}
+                  onToggle={(id, v)   => setEditFutureStages(fs => fs.map(x => x.id === id ? { ...x, is_subcontract: v } : x))}
+                  onDelete={(id)      => setEditFutureStages(fs => fs.filter(x => x.id !== id))}
+                  canDelete={editFutureStages.length > 0} />
+              ))}
+            </SortableContext>
+          </DndContext>
+
+          <button
+            onClick={() => setEditFutureStages(fs => [...fs, { id: `n${Date.now()}`, name: '', is_subcontract: false }])}
+            className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400">
+            + Add stage
+          </button>
+
+          <button onClick={saveJobStages} disabled={savingStages}
+            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
+            {savingStages ? 'Saving...' : 'Save stage changes'}
           </button>
         </div>
       </BottomSheet>
