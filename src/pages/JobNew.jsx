@@ -111,7 +111,7 @@ export default function JobNew() {
   function updateStageName(id, name) { setJobStages(s => s.map(x => x._key === id ? { ...x, name } : x)) }
   function toggleStageVendor(id, v)  { setJobStages(s => s.map(x => x._key === id ? { ...x, is_subcontract: v } : x)) }
   function deleteStage(id)           { setJobStages(s => s.filter(x => x._key !== id)) }
-  function addStage()                { setJobStages(s => [...s, { _key: `n${Date.now()}`, id: `n${Date.now()}`, name: '', is_subcontract: false, order_index: s.length }]) }
+  function addStage()                { setJobStages(s => { const t = Date.now(); return [...s.slice(0, -1), { _key: `n${t}`, id: `n${t}`, name: '', is_subcontract: false, order_index: s.length - 1 }, s[s.length - 1]] }) }
   function handleStageDragEnd({ active, over }) {
     if (!over || active.id === over.id) return
     setJobStages(s => arrayMove(s, s.findIndex(x => x._key === active.id), s.findIndex(x => x._key === over.id)))

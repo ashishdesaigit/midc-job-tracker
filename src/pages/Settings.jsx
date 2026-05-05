@@ -97,7 +97,7 @@ export default function Settings() {
   function updateName(id, name)  { setStages(s => s.map(x => x.id === id ? { ...x, name }              : x)) }
   function toggleVendor(id, val) { setStages(s => s.map(x => x.id === id ? { ...x, is_subcontract: val } : x)) }
   function deleteStage(id)       { setStages(s => s.filter(x => x.id !== id)) }
-  function addStage()            { setStages(s => [...s, { id: `n${Date.now()}`, name: '', is_subcontract: false }]) }
+  function addStage()            { setStages(s => [...s.slice(0, -1), { id: `n${Date.now()}`, name: '', is_subcontract: false }, s[s.length - 1]]) }
 
   async function saveStages() {
     setSaving(true)
