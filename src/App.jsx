@@ -1,6 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { ProtectedRoute, SetupRoute, AdminRoute } from './routes/ProtectedRoute'
 import Layout from './components/Layout'
+import { useAuthStore } from './store/authStore'
+import { checkTrial } from './lib/trialCheck'
 
 import Login from './pages/Login'
 import Info from './pages/Info'
@@ -35,10 +38,30 @@ function AuthPage({ children, allowedRoles }) {
   )
 }
 
+// Checks trial expiry for already-logged-in users on app open
+function TrialGuard() {
+  const { user, unit, setAuth } = useAuthStore()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!user || !unit || user.role === 'admin') return
+    checkTrial(unit).then(updated => {
+      if (!updated?.is_active) {
+        setAuth(user, updated, null)
+        navigate('/suspended', { replace: true })
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <TrialGuard />
+
         {/* Public */}
         <Route path="/info" element={<Info />} />
         <Route path="/login" element={<Login />} />

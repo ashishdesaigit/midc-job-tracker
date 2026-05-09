@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { checkTrial } from '../lib/trialCheck'
 
 const ROLE_REDIRECT = { owner: '/dashboard', supervisor: '/jobs', accounts: '/dispatch' }
 
@@ -60,7 +61,8 @@ export default function Login() {
       return
     }
 
-    const { units: unit, ...userData } = row
+    const { units: rawUnit, ...userData } = row
+    const unit = await checkTrial(rawUnit)
 
     if (!unit?.is_active) {
       setAuth(userData, unit, data.session)
