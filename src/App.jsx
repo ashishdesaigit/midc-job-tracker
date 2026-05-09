@@ -13,6 +13,7 @@ import JobDetail from './pages/JobDetail'
 import JobSubcontract from './pages/JobSubcontract'
 import JobDispatch from './pages/JobDispatch'
 import Outside from './pages/Outside'
+import Insights from './pages/Insights'
 import Dispatch from './pages/Dispatch'
 import Vendors from './pages/Vendors'
 import VendorNew from './pages/VendorNew'
@@ -76,6 +77,9 @@ export default function App() {
         } />
 
         {/* Outside — owner + supervisor */}
+        <Route path="/insights" element={
+          <AuthPage allowedRoles={['owner']}><Insights /></AuthPage>
+        } />
         <Route path="/outside" element={
           <AuthPage allowedRoles={['owner', 'supervisor']}><Outside /></AuthPage>
         } />
