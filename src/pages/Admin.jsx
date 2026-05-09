@@ -51,6 +51,15 @@ export default function Admin() {
     fetchUnits()
   }
 
+  async function extendTrial(u) {
+    const current = u.trial_ends_at ? new Date(u.trial_ends_at) : new Date()
+    const base    = current > new Date() ? current : new Date()
+    const newDate = new Date(base.getTime() + 30 * 86400000).toISOString()
+    await supabase.rpc('admin_set_unit_active', { p_unit_id: u.id, p_active: true }) // reactivate if suspended
+    await supabase.from('units').update({ trial_ends_at: newDate, is_active: true }).eq('id', u.id)
+    fetchUnits()
+  }
+
   async function loadUnitUsers(u) {
     setSelectedUnit(u)
     const { data } = await supabase.rpc('admin_get_unit_users', { p_unit_id: u.id })
@@ -141,15 +150,20 @@ export default function Admin() {
                     <div className="min-w-0">
                       <p className="font-semibold text-gray-900 truncate">{u.name}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {u.type?.replace('_', ' ')} · {u.user_count ?? 0} users · {fmt(u.created_at)}
+                        {u.type?.replace('_', ' ')} · {u.user_count ?? 0} users · Created {fmt(u.created_at)}
                       </p>
+                      {u.plan === 'trial' && u.trial_ends_at && (() => {
+                        const days = Math.ceil((new Date(u.trial_ends_at) - new Date()) / 86400000)
+                        if (days > 0) return <p className="text-xs text-amber-600 mt-0.5">Trial ends in {days}d · {fmt(u.trial_ends_at)}</p>
+                        return <p className="text-xs text-red-600 mt-0.5">Trial expired {Math.abs(days)}d ago</p>
+                      })()}
                     </div>
                     <button onClick={() => loadUnitUsers(u)}
                       className="text-xs text-blue-600 font-medium shrink-0">
                       Users
                     </button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button onClick={() => toggleActive(u)}
                       className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
                         u.is_active ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
@@ -162,6 +176,12 @@ export default function Admin() {
                       }`}>
                       {u.plan === 'paid' ? 'Paid ✓' : 'Trial'}
                     </button>
+                    {u.plan === 'trial' && (
+                      <button onClick={() => extendTrial(u)}
+                        className="flex-1 py-2 rounded-xl text-xs font-medium border border-amber-200 bg-amber-50 text-amber-700 transition-colors">
+                        +30d
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
