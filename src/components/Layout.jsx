@@ -58,8 +58,6 @@ const NAV = {
     { to: '/dashboard', Icon: GridIcon,       label: 'Home' },
     { to: '/jobs',      Icon: FileIcon,        label: 'Jobs' },
     { to: '/outside',   Icon: ArrowRightIcon,  label: 'Outside' },
-    { to: '/vendors',   Icon: UsersIcon,       label: 'Vendors' },
-    { to: '/customers', Icon: UserIcon,        label: 'Customers' },
     { to: '/insights',  Icon: BarChartIcon,    label: 'Insights' },
     { to: '/settings',  Icon: SettingsIcon,    label: 'Settings' },
   ],

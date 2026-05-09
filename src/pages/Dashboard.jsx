@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState(null)
   const [overdueJobs, setOverdueJobs] = useState([])
   const [vendorPayables, setVendorPayables] = useState([])
+  const [quickLinks, setQuickLinks] = useState({ vendors: 0, customers: 0, vendorOutstanding: 0 })
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
@@ -42,6 +43,10 @@ export default function Dashboard() {
       { count: atVendorCount },
       { data: overdueData },
       { data: pendingPay },
+      { count: vendorCount },
+      { count: customerCount },
+      { data: vendorPaymentsData },
+      { data: vendorPaymentsEarned },
     ] = await Promise.all([
       supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'active').lt('due_date', today),
@@ -54,6 +59,10 @@ export default function Dashboard() {
         .select('*, vendors(id, name)')
         .in('status', ['returned', 'partial'])
         .eq('payment_status', 'pending'),
+      supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('customers').select('*', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('vendor_payments').select('amount'),
+      supabase.from('subcontracts').select('qty_received, qty_sent, rate_per_piece').in('status', ['returned', 'partial']),
     ])
 
     setMetrics({ activeCount, overdueCount, dispatchedCount, atVendorCount })
@@ -67,6 +76,13 @@ export default function Dashboard() {
       vendorMap[id].amount += (s.qty_received ?? s.qty_sent) * (s.rate_per_piece ?? 0)
     }
     setVendorPayables(Object.values(vendorMap).sort((a, b) => b.amount - a.amount))
+
+    // Quick links data
+    const totalPaid     = (vendorPaymentsData ?? []).reduce((s, p) => s + p.amount, 0)
+    const totalEarned   = (vendorPaymentsEarned ?? []).reduce((s, r) => s + (r.qty_received ?? r.qty_sent) * (r.rate_per_piece ?? 0), 0)
+    const outstanding   = Math.max(0, Math.round(totalEarned - totalPaid))
+    setQuickLinks({ vendors: vendorCount ?? 0, customers: customerCount ?? 0, vendorOutstanding: outstanding })
+
     setLoading(false)
   }, [unit?.id])
 
@@ -97,6 +113,25 @@ export default function Dashboard() {
           onClick={() => navigate('/dispatch')} />
         <MetricCard label="At vendors"            value={metrics?.atVendorCount}   loading={loading}
           amber={(metrics?.atVendorCount ?? 0) > 0} onClick={() => navigate('/outside')} />
+      </div>
+
+      {/* Vendors + Customers quick links */}
+      <div className="grid grid-cols-2 gap-3 px-4 mt-3">
+        <button onClick={() => navigate('/vendors')}
+          className="bg-white border border-gray-100 rounded-xl p-4 text-left active:bg-gray-50">
+          <p className="text-xs text-gray-400 mb-1">Vendors</p>
+          <p className="text-xl font-bold text-gray-900">{loading ? '—' : quickLinks.vendors}</p>
+          {quickLinks.vendorOutstanding > 0
+            ? <p className="text-xs text-red-500 mt-0.5">₹{quickLinks.vendorOutstanding.toLocaleString('en-IN')} outstanding</p>
+            : <p className="text-xs text-green-600 mt-0.5">Payments up to date</p>
+          }
+        </button>
+        <button onClick={() => navigate('/customers')}
+          className="bg-white border border-gray-100 rounded-xl p-4 text-left active:bg-gray-50">
+          <p className="text-xs text-gray-400 mb-1">Customers</p>
+          <p className="text-xl font-bold text-gray-900">{loading ? '—' : quickLinks.customers}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Tap to view all</p>
+        </button>
       </div>
 
       <div className="px-4 mt-5">
