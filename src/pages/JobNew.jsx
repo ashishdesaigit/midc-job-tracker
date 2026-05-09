@@ -78,8 +78,6 @@ export default function JobNew() {
   const [customers, setCustomers] = useState([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [quickAddOpen, setQuickAddOpen] = useState(false)
-  const [quickName, setQuickName] = useState('')
 
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
@@ -128,21 +126,6 @@ export default function JobNew() {
     setPickerOpen(false)
     setSearch('')
     setError('')
-  }
-
-  async function handleQuickAdd() {
-    if (!quickName.trim()) return
-    const { data } = await supabase
-      .from('customers')
-      .insert({ unit_id: unit.id, name: quickName.trim() })
-      .select()
-      .single()
-    if (data) {
-      setCustomers(cs => [...cs, data].sort((a, b) => a.name.localeCompare(b.name)))
-      selectCustomer(data)
-      setQuickAddOpen(false)
-      setQuickName('')
-    }
   }
 
   function handlePhoto(e) {
@@ -250,12 +233,6 @@ export default function JobNew() {
               }`}
             >
               {form.customer_name || 'Select a customer'}
-            </button>
-            <button
-              onClick={() => setQuickAddOpen(true)}
-              className="w-13.5 h-13.5 flex items-center justify-center border border-gray-300 rounded-xl text-gray-500 text-2xl"
-            >
-              +
             </button>
           </div>
         </div>
@@ -491,37 +468,9 @@ export default function JobNew() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => { setPickerOpen(false); setQuickAddOpen(true) }}
-            className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500"
-          >
-            + Add new customer
-          </button>
-        </div>
-      </BottomSheet>
-
-      {/* Quick-add customer */}
-      <BottomSheet
-        open={quickAddOpen}
-        onClose={() => { setQuickAddOpen(false); setQuickName('') }}
-        title="New customer"
-      >
-        <div className="space-y-4">
-          <input
-            value={quickName}
-            onChange={e => setQuickName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleQuickAdd()}
-            placeholder="Customer name *"
-            autoFocus
-            className="w-full px-4 py-3.5 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <button
-            onClick={handleQuickAdd}
-            disabled={!quickName.trim()}
-            className="w-full bg-blue-600 text-white py-3.5 rounded-xl text-base font-semibold disabled:opacity-50"
-          >
-            Add
-          </button>
+          <p className="text-xs text-gray-400 text-center py-2">
+            Create customers from the Customers tab first
+          </p>
         </div>
       </BottomSheet>
     </div>

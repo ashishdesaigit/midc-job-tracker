@@ -118,6 +118,42 @@ function InfoRow({ label, value }) {
   )
 }
 
+// ── Activity item ─────────────────────────────────────────────────────────────
+
+function ActivityItem({ item }) {
+  if (item._type === 'transition') return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <div className="w-1.5 h-1.5 rounded-full bg-teal-300 mt-1.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs font-medium text-gray-500">Moved to {item.stage_name}</span>
+          <span className="text-xs text-gray-400">{fmtTime(item.moved_at)}</span>
+        </div>
+        <p className="text-xs text-gray-400 mt-0.5">{item.users?.name ?? 'User'}</p>
+        {item.closing_remark && (
+          <p className="text-sm text-gray-600 mt-1 italic">"{item.closing_remark}"</p>
+        )}
+      </div>
+    </div>
+  )
+  return (
+    <div className="flex items-start gap-2 px-4 py-3">
+      <div className="w-1.5 h-1.5 rounded-full bg-blue-300 mt-1.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="bg-blue-50 rounded-xl rounded-tl-none px-3 py-2.5">
+          {item.comment && <p className="text-sm text-gray-800">{item.comment}</p>}
+          {item.photo_url && (
+            <img src={item.photo_url} alt="comment" className="mt-2 w-full h-32 object-cover rounded-lg" />
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-1">
+          {item.users?.name ?? 'User'} · {fmtTime(item.created_at)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function JobDetail() {
@@ -634,76 +670,61 @@ export default function JobDetail() {
         </div>
       )}
 
-      {stageGroups.length > 0 && (
-        <div className="mx-4 mt-3 mb-6 bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
-          {stageGroups.map(([stageName, items]) => {
-            const expanded = isStageExpanded(stageName)
-            return (
-              <div key={stageName}>
-                {/* Stage group header */}
+      {/* Current stage activity — always visible */}
+      {stageGroups.length > 0 && (() => {
+        const [[, currentItems], ...prevGroups] = stageGroups
+        return (
+          <>
+            {currentItems?.length > 0 && (
+              <div className="mx-4 mt-3 bg-white rounded-xl border border-gray-100">
+                <div className="px-4 py-3 border-b border-gray-50">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    This stage — {currentItems.length} note{currentItems.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {currentItems.map((item, idx) => (
+                    <ActivityItem key={item.id ?? idx} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Previous stage details — collapsed */}
+            {prevGroups.length > 0 && (
+              <div className="mx-4 mt-3 mb-6 bg-white rounded-xl border border-gray-100">
                 <button
-                  onClick={() => toggleStageGroup(stageName)}
-                  className="flex items-center justify-between w-full px-4 py-3"
+                  onClick={() => toggleStageGroup('__previous__')}
+                  className="flex items-center justify-between w-full px-4 py-3.5"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
-                    <span className="text-sm font-medium text-gray-800">{stageName}</span>
-                    <span className="text-xs text-gray-400">({items.length})</span>
-                  </div>
+                  <span className="text-sm font-semibold text-gray-500">
+                    Previous Stage Details ({prevGroups.reduce((n, [, items]) => n + items.length, 0)})
+                  </span>
                   <svg viewBox="0 0 24 24"
-                    className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isStageExpanded('__previous__') ? 'rotate-180' : ''}`}
                     fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </button>
-
-                {/* Stage group items */}
-                {expanded && (
-                  <div className="border-t border-gray-50 divide-y divide-gray-50">
-                    {items.map((item, idx) => (
-                      <div key={item.id ?? idx} className="px-4 py-3">
-                        {item._type === 'transition' ? (
-                          <div className="flex items-start gap-3">
-                            <div className="w-1.5 h-1.5 rounded-full bg-teal-300 mt-1.5 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="text-xs font-medium text-gray-500">
-                                  Moved to {item.stage_name}
-                                </span>
-                                <span className="text-xs text-gray-400">{fmtTime(item.moved_at)}</span>
-                              </div>
-                              <p className="text-xs text-gray-400 mt-0.5">{item.users?.name ?? 'User'}</p>
-                              {item.closing_remark && (
-                                <p className="text-sm text-gray-600 mt-1 italic">"{item.closing_remark}"</p>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-start gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-300 mt-1.5 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="bg-blue-50 rounded-xl rounded-tl-none px-3 py-2.5">
-                                {item.comment && <p className="text-sm text-gray-800">{item.comment}</p>}
-                                {item.photo_url && (
-                                  <img src={item.photo_url} alt="comment"
-                                    className="mt-2 w-full h-32 object-cover rounded-lg" />
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {item.users?.name ?? 'User'} · {fmtTime(item.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                        )}
+                {isStageExpanded('__previous__') && (
+                  <div className="border-t border-gray-50 divide-y divide-gray-100">
+                    {prevGroups.map(([stageName, items]) => (
+                      <div key={stageName}>
+                        <p className="px-4 py-2 text-xs font-medium text-gray-400 bg-gray-50">{stageName}</p>
+                        <div className="divide-y divide-gray-50">
+                          {items.map((item, idx) => (
+                            <ActivityItem key={item.id ?? idx} item={item} />
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            )
-          })}
-        </div>
-      )}
+            )}
+          </>
+        )
+      })()}
 
       {/* Cancel job — owner only, very bottom, subtle */}
       {user?.role === 'owner' && job.status === 'active' && (
@@ -727,17 +748,6 @@ export default function JobDetail() {
               {currentStage?.name} → {nextStage?.name}
             </p>
             <p className="text-sm text-gray-500 mt-1">Confirm?</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Closing remark <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <input
-              value={closingRemark}
-              onChange={e => setClosingRemark(e.target.value)}
-              placeholder="e.g. Moulding complete, pouring ready"
-              className="w-full px-4 py-3 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
           <button onClick={confirmMove}
             className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-base font-semibold">
