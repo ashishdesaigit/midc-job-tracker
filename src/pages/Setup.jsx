@@ -126,7 +126,8 @@ export default function Setup() {
   const [unitData, setUnitData] = useState({
     name: '', type: '', ownerName: '', ownerPhone: '', address: '', gstin: '',
   })
-  const [stages, setStages] = useState([])
+  const [editStages, setEditStages] = useState([])
+  const [lastStage, setLastStage] = useState(null)
   const [customer, setCustomer] = useState({ name: '', phone: '', gstin: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -144,7 +145,9 @@ export default function Setup() {
 
   function handleTypeSelect(type) {
     setUnitData(d => ({ ...d, type }))
-    setStages(DEFAULT_STAGES[type].map((s, i) => ({ ...s, id: `s${Date.now()}${i}` })))
+    const all = DEFAULT_STAGES[type].map((s, i) => ({ ...s, id: `s${Date.now()}${i}` }))
+    setLastStage(all[all.length - 1])
+    setEditStages(all.slice(0, -1))
     setError('')
   }
 
@@ -159,16 +162,16 @@ export default function Setup() {
   // ── Stage mutations ──
   function handleDragEnd({ active, over }) {
     if (!over || active.id === over.id) return
-    setStages(s => arrayMove(s, s.findIndex(x => x.id === active.id), s.findIndex(x => x.id === over.id)))
+    setEditStages(s => arrayMove(s, s.findIndex(x => x.id === active.id), s.findIndex(x => x.id === over.id)))
   }
-  function updateName(id, name)    { setStages(s => s.map(x => x.id === id ? { ...x, name }            : x)) }
-  function toggleVendor(id, val)   { setStages(s => s.map(x => x.id === id ? { ...x, is_subcontract: val } : x)) }
-  function deleteStage(id)         { setStages(s => s.filter(x => x.id !== id)) }
-  function addStage()              { setStages(s => [...s.slice(0, -1), { id: `s${Date.now()}`, name: '', is_subcontract: false }, s[s.length - 1]]) }
+  function updateName(id, name)    { setEditStages(s => s.map(x => x.id === id ? { ...x, name }            : x)) }
+  function toggleVendor(id, val)   { setEditStages(s => s.map(x => x.id === id ? { ...x, is_subcontract: val } : x)) }
+  function deleteStage(id)         { setEditStages(s => s.filter(x => x.id !== id)) }
+  function addStage()              { setEditStages(s => [...s, { id: `s${Date.now()}`, name: '', is_subcontract: false }]) }
 
   // ── Step 2 → 3 ──
   function goStep3() {
-    if (stages.filter(s => s.name.trim()).length < 2) { setError('Minimum 2 stages required'); return }
+    if (editStages.filter(s => s.name.trim()).length < 1) { setError('Add at least 1 stage before Dispatch'); return }
     setError(''); setStep(3)
   }
 
@@ -184,8 +187,7 @@ export default function Setup() {
       p_owner_phone:   unitData.ownerPhone.trim() || null,
       p_address:       unitData.address.trim()    || null,
       p_gstin:         unitData.gstin.trim()       || null,
-      p_stages:        stages
-                         .filter(s => s.name.trim())
+      p_stages:        [...editStages.filter(s => s.name.trim()), lastStage].filter(Boolean)
                          .map(s => ({ name: s.name.trim(), is_subcontract: s.is_subcontract })),
       p_customer_name:  skipCustomer ? null : customer.name.trim(),
       p_customer_phone: skipCustomer ? null : (customer.phone.trim() || null),
@@ -340,22 +342,31 @@ export default function Setup() {
               Drag to reorder · Vendor = can outsource
             </p>
 
+            {/* Editable stages — Dispatch is never in this list */}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={stages.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={editStages.map(s => s.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
-                  {stages.map(stage => (
+                  {editStages.map(stage => (
                     <SortableStageItem
                       key={stage.id}
                       stage={stage}
                       onNameChange={updateName}
                       onVendorToggle={toggleVendor}
                       onDelete={deleteStage}
-                      canDelete={stages.length > 2}
+                      canDelete={editStages.length > 1}
                     />
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
+
+            {/* Dispatch — always locked at bottom */}
+            {lastStage && (
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 opacity-60">
+                <span className="text-gray-300 w-5 text-center text-xs">🔒</span>
+                <span className="flex-1 text-sm text-gray-500">{lastStage.name} (fixed last stage)</span>
+              </div>
+            )}
 
             <button
               onClick={addStage}

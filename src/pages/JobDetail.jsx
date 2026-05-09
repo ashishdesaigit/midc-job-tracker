@@ -129,7 +129,8 @@ export default function JobDetail() {
   const [allStages, setAllStages] = useState([])
   const [stageLog, setStageLog] = useState([])
   const [comments, setComments] = useState([])
-  const [activeSub, setActiveSub] = useState(null)
+  const [activeSub, setActiveSub] = useState(null)     // pending (with vendor)
+  const [completedSub, setCompletedSub] = useState(null) // most recent returned/partial
   const [loading, setLoading] = useState(true)
 
   // Stage movement
@@ -195,17 +196,21 @@ export default function JobDetail() {
 
     const currentStageData = j.current_job_stage_id ? j.current_job_stage : j.stage_templates
     if (currentStageData?.is_subcontract) {
-      const { data: sub } = await supabase
-        .from('subcontracts')
-        .select('*, vendors(name, phone)')
-        .eq('job_id', id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      setActiveSub(sub ?? null)
+      // Filter by stage_name — each stage only sees its own vendor work
+      const sn = currentStageData.name
+      const [{ data: pending }, { data: completed }] = await Promise.all([
+        supabase.from('subcontracts').select('*, vendors(name, phone)')
+          .eq('job_id', id).eq('status', 'pending').eq('stage_name', sn)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('subcontracts').select('*, vendors(name, phone)')
+          .eq('job_id', id).in('status', ['returned', 'partial']).eq('stage_name', sn)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ])
+      setActiveSub(pending ?? null)
+      setCompletedSub(completed ?? null)
     } else {
       setActiveSub(null)
+      setCompletedSub(null)
     }
 
     setLoading(false)
@@ -504,6 +509,7 @@ export default function JobDetail() {
           {(vendorExpanded || activeSub) && (
             <div className="border-t border-amber-100 p-4">
               {activeSub ? (
+                /* Pending with vendor */
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <InfoRow label="Vendor"          value={activeSub.vendors?.name} />
@@ -525,7 +531,36 @@ export default function JobDetail() {
                     </button>
                   </div>
                 </div>
+              ) : completedSub ? (
+                /* Returned — Next stage → is now unlocked */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      completedSub.status === 'returned' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {completedSub.status === 'returned' ? 'Returned ✓' : 'Partial return'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                    <InfoRow label="Vendor"   value={completedSub.vendors?.name} />
+                    <InfoRow label="Received" value={`${completedSub.qty_received} pcs`} />
+                    {(completedSub.qty_rejected ?? 0) > 0 && (
+                      <InfoRow label="Rejected" value={`${completedSub.qty_rejected} pcs`} />
+                    )}
+                  </div>
+                  {completedSub.rejection_note && (
+                    <p className="text-xs text-gray-600 italic">"{completedSub.rejection_note}"</p>
+                  )}
+                  {canEdit && completedSub.status === 'partial' && (
+                    <button onClick={() => navigate(`/jobs/${id}/subcontract`)}
+                      className="w-full py-2 border border-amber-300 text-amber-700 rounded-xl text-xs font-medium">
+                      Send remaining to vendor
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400">Use "Next stage →" below to advance.</p>
+                </div>
               ) : canEdit && (
+                /* Not sent yet */
                 <button onClick={() => navigate(`/jobs/${id}/subcontract`)}
                   className="w-full py-3 bg-amber-500 text-white rounded-xl text-sm font-semibold">
                   Send to vendor

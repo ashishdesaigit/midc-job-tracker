@@ -59,7 +59,10 @@ export default function Settings() {
   }
 
   const [unitForm, setUnitForm] = useState({ name: '', address: '', gstin: '' })
-  const [stages, setStages] = useState([])
+  // editStages = all stages except the last (Dispatch)
+  // lastStage  = always Dispatch, always locked, never in the editable list
+  const [editStages, setEditStages] = useState([])
+  const [lastStage, setLastStage] = useState(null)
   const [loadingStages, setLoadingStages] = useState(true)
   const [saving, setSaving] = useState(false)
   const [seedLoading, setSeedLoading] = useState(false)
@@ -75,7 +78,12 @@ export default function Settings() {
     if (!unit) return
     setUnitForm({ name: unit.name ?? '', address: unit.address ?? '', gstin: unit.gstin ?? '' })
     supabase.from('stage_templates').select('*').eq('unit_id', unit.id).order('order_index')
-      .then(({ data }) => { setStages(data ?? []); setLoadingStages(false) })
+      .then(({ data }) => {
+        const all = data ?? []
+        setLastStage(all[all.length - 1] ?? null)
+        setEditStages(all.slice(0, -1))
+        setLoadingStages(false)
+      })
   }, [unit])
 
   function flash(msg) { setMessage(msg); setTimeout(() => setMessage(''), 2500) }
@@ -92,18 +100,20 @@ export default function Settings() {
 
   function handleDragEnd({ active, over }) {
     if (!over || active.id === over.id) return
-    setStages(s => arrayMove(s, s.findIndex(x => x.id === active.id), s.findIndex(x => x.id === over.id)))
+    setEditStages(s => arrayMove(s, s.findIndex(x => x.id === active.id), s.findIndex(x => x.id === over.id)))
   }
-  function updateName(id, name)  { setStages(s => s.map(x => x.id === id ? { ...x, name }              : x)) }
-  function toggleVendor(id, val) { setStages(s => s.map(x => x.id === id ? { ...x, is_subcontract: val } : x)) }
-  function deleteStage(id)       { setStages(s => s.filter(x => x.id !== id)) }
-  function addStage()            { setStages(s => [...s.slice(0, -1), { id: `n${Date.now()}`, name: '', is_subcontract: false }, s[s.length - 1]]) }
+  function updateName(id, name)  { setEditStages(s => s.map(x => x.id === id ? { ...x, name }              : x)) }
+  function toggleVendor(id, val) { setEditStages(s => s.map(x => x.id === id ? { ...x, is_subcontract: val } : x)) }
+  function deleteStage(id)       { setEditStages(s => s.filter(x => x.id !== id)) }
+  // Always appends to editStages only — Dispatch (lastStage) is never touched
+  function addStage()            { setEditStages(s => [...s, { id: `n${Date.now()}`, name: '', is_subcontract: false }]) }
 
   async function saveStages() {
     setSaving(true)
+    // Full ordered list = editable stages (named ones) + lastStage (Dispatch) always at end
+    const toSave = [...editStages.filter(s => s.name.trim()), lastStage].filter(Boolean)
     const insertedIds = []
-    for (const [idx, stage] of stages.entries()) {
-      if (!stage.name.trim()) continue
+    for (const [idx, stage] of toSave.entries()) {
       if (isUUID(stage.id)) {
         await supabase.from('stage_templates')
           .update({ name: stage.name.trim(), is_subcontract: stage.is_subcontract, order_index: idx })
@@ -115,8 +125,7 @@ export default function Settings() {
         if (inserted) insertedIds.push(inserted.id)
       }
     }
-    // Include newly inserted IDs so they aren't deleted in the cleanup below
-    const keptIds = [...stages.filter(s => isUUID(s.id)).map(s => s.id), ...insertedIds]
+    const keptIds = [...toSave.filter(s => isUUID(s.id)).map(s => s.id), ...insertedIds]
     const { data: all } = await supabase.from('stage_templates').select('id').eq('unit_id', unit.id)
     for (const row of all ?? []) {
       if (!keptIds.includes(row.id)) {
@@ -176,21 +185,21 @@ export default function Settings() {
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Stage configuration</p>
         {loadingStages ? <p className="text-sm text-gray-400">Loading...</p> : (
           <div className="space-y-2">
-            {/* Draggable stages — all except the last (Dispatch) */}
+            {/* Editable stages — Dispatch is never in this list */}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={stages.slice(0,-1).map(s => s.id)} strategy={verticalListSortingStrategy}>
-                {stages.slice(0, -1).map(s => (
+              <SortableContext items={editStages.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                {editStages.map(s => (
                   <SortableStageItem key={s.id} stage={s}
                     onChange={updateName} onToggle={toggleVendor} onDelete={deleteStage}
-                    canDelete={stages.length > 2} />
+                    canDelete={editStages.length > 1} />
                 ))}
               </SortableContext>
             </DndContext>
-            {/* Last stage (Dispatch) — always fixed at bottom, non-editable */}
-            {stages.length > 0 && (
+            {/* Dispatch — always fixed at bottom */}
+            {lastStage && (
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 opacity-60">
                 <span className="text-gray-300 w-5 h-5 shrink-0 text-center">🔒</span>
-                <span className="flex-1 text-sm text-gray-500">{stages[stages.length - 1]?.name} (fixed last stage)</span>
+                <span className="flex-1 text-sm text-gray-500">{lastStage.name} (fixed last stage)</span>
               </div>
             )}
             <button onClick={addStage}

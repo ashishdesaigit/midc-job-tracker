@@ -3,6 +3,7 @@ import { ProtectedRoute, SetupRoute, AdminRoute } from './routes/ProtectedRoute'
 import Layout from './components/Layout'
 
 import Login from './pages/Login'
+import Info from './pages/Info'
 import AuthCallback from './pages/AuthCallback'
 import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
@@ -38,6 +39,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public */}
+        <Route path="/info" element={<Info />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/suspended" element={<Suspended />} />

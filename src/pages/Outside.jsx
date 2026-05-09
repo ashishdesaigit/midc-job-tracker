@@ -180,7 +180,7 @@ export default function Outside() {
         open={!!returnSub}
         onClose={() => setReturnSub(null)}
         subcontract={returnSub}
-        onComplete={() => { fetchSubs(); navigate(`/jobs/${returnSub?.jobs?.id}`) }}
+        onComplete={() => fetchSubs()}
       />
     </div>
   )
