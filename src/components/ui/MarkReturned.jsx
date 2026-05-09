@@ -11,18 +11,12 @@ function today() {
 export default function MarkReturned({ open, onClose, subcontract, onComplete }) {
   const { unit } = useAuthStore()
 
-  const [form, setForm] = useState({
-    qty_received: '',
-    qty_rejected: '0',
-    notes: '',
-    return_date: today(),
-  })
+  const [notes, setNotes] = useState('')
+  const [returnDate, setReturnDate] = useState(today())
   const [photo, setPhoto] = useState(null)
   const [preview, setPreview] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  function set(key, val) { setForm(f => ({ ...f, [key]: val })); setError('') }
 
   function handlePhoto(e) {
     const file = e.target.files[0]
@@ -32,14 +26,6 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
   }
 
   async function handleSave() {
-    const recv = parseInt(form.qty_received) || 0
-    const rej  = parseInt(form.qty_rejected) || 0
-    const sent = subcontract.qty_sent
-
-    if (recv <= 0)         { setError('Enter qty received'); return }
-    if (recv + rej > sent) { setError(`Received + rejected cannot exceed ${sent} pcs`); return }
-    if (rej > 0 && !form.notes.trim()) { setError('Enter rejection reason'); return }
-
     setLoading(true); setError('')
 
     let photoUrl = null
@@ -54,27 +40,25 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
     const { error: subErr } = await supabase
       .from('subcontracts')
       .update({
-        qty_received: recv,
-        qty_rejected: rej,
-        rejection_note: form.notes.trim() || null,
+        qty_received: subcontract.qty_sent,
+        qty_rejected: 0,
+        rejection_note: notes.trim() || null,
         rejection_photo_url: photoUrl,
-        actual_return_date: form.return_date,
-        status: recv >= sent ? 'returned' : 'partial',
+        actual_return_date: returnDate,
+        status: 'returned',
       })
       .eq('id', subcontract.id)
 
     if (subErr) { setError(subErr.message); setLoading(false); return }
 
-    // No auto-advance — user manually clicks "Next stage →" on the job page
     setLoading(false)
-    setForm({ qty_received: '', qty_rejected: '0', notes: '', return_date: today() })
+    setNotes(''); setReturnDate(today())
     setPhoto(null); setPreview('')
     onComplete?.()
     onClose()
   }
 
   if (!subcontract) return null
-  const hasRejection = parseInt(form.qty_rejected) > 0
 
   return (
     <BottomSheet open={open} onClose={onClose} title={`Mark returned — ${subcontract.challan_ref}`}>
@@ -87,30 +71,16 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Qty received *</label>
-          <input type="number" inputMode="numeric" min={0} max={subcontract.qty_sent}
-            value={form.qty_received} onChange={e => set('qty_received', e.target.value)}
-            placeholder={String(subcontract.qty_sent)} autoFocus
-            className="w-full px-4 py-3.5 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Qty rejected</label>
-          <input type="number" inputMode="numeric" min={0}
-            value={form.qty_rejected} onChange={e => set('qty_rejected', e.target.value)}
-            className="w-full px-4 py-3.5 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-          {hasRejection && <p className="text-xs text-amber-600 mt-1">Rejection reason required below</p>}
-        </div>
-
-        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {hasRejection ? 'Rejection reason *' : 'Notes'}
-            {!hasRejection && <span className="text-gray-400 font-normal"> (optional)</span>}
+            Notes <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-            placeholder={hasRejection ? 'e.g. Dimension out of tolerance' : 'Some notes...'}
-            rows={2}
-            className="w-full px-4 py-3 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+          <textarea
+            value={notes}
+            onChange={e => { setNotes(e.target.value); setError('') }}
+            placeholder="Quantity received, quality observations, any issues..."
+            rows={3}
+            className="w-full px-4 py-3 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          />
         </div>
 
         <div>
@@ -133,8 +103,12 @@ export default function MarkReturned({ open, onClose, subcontract, onComplete })
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Return date</label>
-          <input type="date" value={form.return_date} onChange={e => set('return_date', e.target.value)}
-            className="w-full px-4 py-3.5 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+          <input
+            type="date"
+            value={returnDate}
+            onChange={e => setReturnDate(e.target.value)}
+            className="w-full px-4 py-3.5 text-base border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
