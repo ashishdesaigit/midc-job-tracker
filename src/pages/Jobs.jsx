@@ -16,11 +16,16 @@ function dueDateInfo(due, status) {
   return { label: `${days}d left`, color: 'text-green-600' }
 }
 
+// Returns the correct current stage for a job (supports both unit stages and custom job stages)
+function jobStage(job) {
+  return job.current_job_stage_id ? job.current_job_stage : job.stage_templates
+}
+
 function pillVariant(job) {
   if (job.status === 'dispatched') return 'done'
-  const name = job.stage_templates?.name ?? ''
-  if (job.stage_templates?.is_subcontract) return 'vendor'
-  if (name === 'Inspection') return 'inspect'
+  const stage = jobStage(job)
+  if (stage?.is_subcontract) return 'vendor'
+  if (stage?.name === 'Inspection') return 'inspect'
   return 'house'
 }
 
@@ -50,7 +55,7 @@ export default function Jobs() {
     Promise.all([
       supabase
         .from('jobs')
-        .select('*, stage_templates(name, is_subcontract), customers(name)')
+        .select('*, stage_templates(name, is_subcontract), current_job_stage:job_stages!current_job_stage_id(name, is_subcontract), customers(name)')
         .eq('unit_id', unit.id)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: false }),
@@ -175,7 +180,7 @@ export default function Jobs() {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <StagePill
-                        label={job.status === 'dispatched' ? 'Dispatched' : (job.stage_templates?.name ?? '—')}
+                        label={job.status === 'dispatched' ? 'Dispatched' : (jobStage(job)?.name ?? '—')}
                         variant={pillVariant(job)}
                       />
                       {due && (

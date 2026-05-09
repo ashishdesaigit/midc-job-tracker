@@ -14,10 +14,15 @@ function dueDateLabel(due) {
   return { text: `${days}d left`, color: 'text-green-600' }
 }
 
+function activeStage(job) {
+  return job.current_job_stage_id ? job.current_job_stage : job.stage_templates
+}
+
 function pillVariant(job) {
   if (job.status === 'dispatched') return 'done'
-  if (job.stage_templates?.name === 'Inspection') return 'inspect'
-  if (job.stage_templates?.is_subcontract) return 'vendor'
+  const s = activeStage(job)
+  if (s?.is_subcontract) return 'vendor'
+  if (s?.name === 'Inspection') return 'inspect'
   return 'house'
 }
 
@@ -35,7 +40,7 @@ export default function CustomerDetail() {
     const [{ data: c }, { data: j }] = await Promise.all([
       supabase.from('customers').select('*').eq('id', id).single(),
       supabase.from('jobs')
-        .select('*, stage_templates(name, is_subcontract)')
+        .select('*, stage_templates(name, is_subcontract), current_job_stage:job_stages!current_job_stage_id(name, is_subcontract)')
         .eq('customer_id', id)
         .order('created_at', { ascending: false }),
     ])
@@ -133,7 +138,7 @@ export default function CustomerDetail() {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <StagePill
-                        label={job.status === 'dispatched' ? 'Dispatched' : (job.stage_templates?.name ?? '—')}
+                        label={job.status === 'dispatched' ? 'Dispatched' : (activeStage(job)?.name ?? '—')}
                         variant={pillVariant(job)}
                       />
                       {due && <span className={`text-xs ${due.color}`}>{due.text}</span>}
