@@ -14,7 +14,7 @@ create table units (
   gstin text,
   is_active boolean default true,
   plan text check (plan in ('trial','paid')) default 'trial',
-  trial_ends_at timestamptz default (now() + interval '90 days'),
+  trial_ends_at timestamptz default (now() + interval '45 days'),
   created_at timestamptz default now()
 );
 
