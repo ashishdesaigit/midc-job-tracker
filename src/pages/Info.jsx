@@ -142,16 +142,48 @@ export default function Info() {
         </div>
       </section>
 
-      {/* ── Screenshots ─────────────────────────────────────────────────────── */}
-      <section style={sec()}>
-        <h2 style={{ fontSize: 20, fontWeight: 500, margin: '0 0 20px' }}>See it in action</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Screenshot src="/screenshots/dashboard.png"    alt="Owner dashboard"      caption="Owner dashboard" />
-          <Screenshot src="/screenshots/job-list.png"     alt="Job list"             caption="Job list" />
-          <Screenshot src="/screenshots/outside-jobs.png" alt="Vendor tracking"      caption="Vendor tracking" />
-          <Screenshot src="/screenshots/job-detail.png"   alt="Job detail"           caption="Job detail" />
-        </div>
-      </section>
+{/* ── Screenshots (Mobile Optimized Swiper) ───────────────────────────── */}
+<section style={{ ...sec(), paddingRight: 0, paddingLeft: 0 }}>
+  <h2 style={{ fontSize: 20, fontWeight: 500, margin: '0 16px 20px' }}>See it in action</h2>
+  
+  <div style={{ 
+    display: 'flex', 
+    overflowX: 'auto', 
+    gap: 12, 
+    padding: '0 16px 16px', // Side padding allows the first/last cards to align with text
+    scrollSnapType: 'x mandatory',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none'
+  }}>
+    {/* CSS to hide scrollbar for a cleaner look */}
+    <style>{`
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+    `}</style>
+
+    {[
+      { src: "/screenshots/dashboard.png", cap: "Owner dashboard" },
+      { src: "/screenshots/job-list.png", cap: "Job list" },
+      { src: "/screenshots/outside-jobs.png", cap: "Vendor tracking" },
+      { src: "/screenshots/job-detail.png", cap: "Job detail" },
+      { src: "/screenshots/insight.png", cap: "Insights" },
+      { src: "/screenshots/comments.png", cap: "Comments" },
+      { src: "/screenshots/vendor-followup.png", cap: "Vendor Followups" },
+    ].map((img, i) => (
+      <div key={i} style={{ 
+        width: '85%',       // Shows 85% of current card + 15% of the next one
+        flexShrink: 0, 
+        scrollSnapAlign: 'center' 
+      }}>
+        <Screenshot src={img.src} alt={img.cap} caption={img.cap} />
+      </div>
+    ))}
+  </div>
+  
+  <p style={{ textAlign: 'center', fontSize: 11, color: TEXT_TERT, marginTop: 4 }}>
+    Swipe left or right to view more
+  </p>
+</section>
 
       {/* ── Features ────────────────────────────────────────────────────────── */}
       <section style={sec()}>
