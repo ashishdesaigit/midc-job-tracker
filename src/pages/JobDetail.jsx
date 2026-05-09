@@ -201,6 +201,7 @@ export default function JobDetail() {
 
   // Report download
   const [generatingReport, setGeneratingReport] = useState(false)
+  const [reportHtml, setReportHtml] = useState(null)
 
   async function handleDownloadReport() {
     setGeneratingReport(true)
@@ -213,10 +214,16 @@ export default function JobDetail() {
       subcontracts: allSubs ?? [],
       dispatches:   allDisps ?? [],
     })
-    const win = window.open('', '_blank')
-    win.document.write(html)
-    win.document.close()
+    setReportHtml(html)
     setGeneratingReport(false)
+  }
+
+  function printReport() {
+    const iframe = document.getElementById('report-iframe')
+    if (iframe?.contentWindow) {
+      try { iframe.contentWindow.print() }
+      catch { window.print() }
+    }
   }
 
   // Vendor section toggle
@@ -914,6 +921,33 @@ export default function JobDetail() {
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center"
           onClick={() => setPhotoOpen(false)}>
           <img src={job.photo_url} alt="Job" className="max-w-full max-h-full object-contain" />
+        </div>
+      )}
+
+      {/* Report overlay — works in iOS PWA (no window.open needed) */}
+      {reportHtml && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="flex items-center gap-3 px-4 py-3 bg-blue-700 text-white shrink-0">
+            <span className="text-sm font-semibold flex-1 truncate">Report — {job.job_number}</span>
+            <button
+              onClick={printReport}
+              className="flex items-center gap-1.5 bg-white text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Print / PDF
+            </button>
+            <button onClick={() => setReportHtml(null)} className="text-white/80 text-xl w-8 h-8 flex items-center justify-center">
+              ×
+            </button>
+          </div>
+          <iframe
+            id="report-iframe"
+            srcDoc={reportHtml}
+            className="flex-1 w-full border-none"
+            title="Job Report"
+          />
         </div>
       )}
     </div>
