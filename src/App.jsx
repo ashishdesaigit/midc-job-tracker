@@ -59,9 +59,8 @@ function TrialGuard() {
 export default function App() {
   return (
     <BrowserRouter>
+      <TrialGuard />
       <Routes>
-        <TrialGuard />
-
         {/* Public */}
         <Route path="/info" element={<Info />} />
         <Route path="/login" element={<Login />} />
