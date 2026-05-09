@@ -44,6 +44,21 @@ function Screenshot({ src, alt, caption }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function Info() {
   const navigate = useNavigate()
+  const [canScrollLeft, setCanScrollLeft]   = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+
+  function onScroll(e) {
+    const el = e.currentTarget
+    setCanScrollLeft(el.scrollLeft > 10)
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10)
+  }
+
+  function scrollBy(dir) {
+    const el = document.getElementById('screenshot-scroll')
+    if (!el) return
+    const itemW = el.clientWidth * 0.85 + 12
+    el.scrollBy({ left: dir * itemW, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     const setMeta = (prop, content, isName = false) => {
@@ -142,47 +157,48 @@ export default function Info() {
         </div>
       </section>
 
-{/* ── Screenshots (Mobile Optimized Swiper) ───────────────────────────── */}
+{/* ── Screenshots ─────────────────────────────────────────────────────── */}
 <section style={{ ...sec(), paddingRight: 0, paddingLeft: 0 }}>
-  <h2 style={{ fontSize: 20, fontWeight: 500, margin: '0 16px 20px' }}>See it in action</h2>
-  
-  <div style={{ 
-    display: 'flex', 
-    overflowX: 'auto', 
-    gap: 12, 
-    padding: '0 16px 16px', // Side padding allows the first/last cards to align with text
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', marginBottom: 16 }}>
+    <h2 style={{ fontSize: 20, fontWeight: 500, margin: 0 }}>See it in action</h2>
+    <div style={{ display: 'flex', gap: 8 }}>
+      <button onClick={() => scrollBy(-1)} disabled={!canScrollLeft}
+        style={{ width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${canScrollLeft ? TEAL : BORDER}`, background: '#fff', cursor: canScrollLeft ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={canScrollLeft ? TEAL : BORDER} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+      <button onClick={() => scrollBy(1)} disabled={!canScrollRight}
+        style={{ width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${canScrollRight ? TEAL : BORDER}`, background: '#fff', cursor: canScrollRight ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={canScrollRight ? TEAL : BORDER} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="screenshot-scroll" onScroll={onScroll} style={{
+    display: 'flex', overflowX: 'auto', gap: 12,
+    padding: '0 16px 16px',
     scrollSnapType: 'x mandatory',
     WebkitOverflowScrolling: 'touch',
-    scrollbarWidth: 'none',
-    msOverflowStyle: 'none'
+    scrollbarWidth: 'none', msOverflowStyle: 'none',
   }}>
-    {/* CSS to hide scrollbar for a cleaner look */}
-    <style>{`
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-    `}</style>
-
+    <style>{`#screenshot-scroll::-webkit-scrollbar { display: none; }`}</style>
     {[
-      { src: "/screenshots/dashboard.png", cap: "Owner dashboard" },
-      { src: "/screenshots/job-list.png", cap: "Job list" },
-      { src: "/screenshots/outside-jobs.png", cap: "Vendor tracking" },
-      { src: "/screenshots/job-detail.png", cap: "Job detail" },
-      { src: "/screenshots/insight.png", cap: "Insights" },
-      { src: "/screenshots/comments.png", cap: "Comments" },
-      { src: "/screenshots/vendor-followup.png", cap: "Vendor Followups" },
+      { src: '/screenshots/dashboard.png',      cap: 'Owner dashboard' },
+      { src: '/screenshots/job-list.png',        cap: 'Job list' },
+      { src: '/screenshots/outside-jobs.png',    cap: 'Vendor tracking' },
+      { src: '/screenshots/job-detail.png',      cap: 'Job detail' },
+      { src: '/screenshots/insight.png',         cap: 'Insights' },
+      { src: '/screenshots/comments.png',        cap: 'Comments' },
+      { src: '/screenshots/vendor-followup.png', cap: 'Vendor follow-up' },
     ].map((img, i) => (
-      <div key={i} style={{ 
-        width: '85%',       // Shows 85% of current card + 15% of the next one
-        flexShrink: 0, 
-        scrollSnapAlign: 'center' 
-      }}>
+      <div key={i} style={{ width: '80%', flexShrink: 0, scrollSnapAlign: 'center' }}>
         <Screenshot src={img.src} alt={img.cap} caption={img.cap} />
       </div>
     ))}
   </div>
-  
-  <p style={{ textAlign: 'center', fontSize: 11, color: TEXT_TERT, marginTop: 4 }}>
-    Swipe left or right to view more
-  </p>
 </section>
 
       {/* ── Features ────────────────────────────────────────────────────────── */}
