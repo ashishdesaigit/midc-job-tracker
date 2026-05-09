@@ -14,6 +14,7 @@ import { useAuthStore } from '../store/authStore'
 import { openWhatsApp } from '../lib/whatsapp'
 import { uploadPhoto } from '../lib/photoUpload'
 import BottomSheet from '../components/ui/BottomSheet'
+import { generateJobReport } from '../lib/generateJobReport'
 import StagePill from '../components/ui/StagePill'
 import MarkReturned from '../components/ui/MarkReturned'
 
@@ -197,6 +198,26 @@ export default function JobDetail() {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+
+  // Report download
+  const [generatingReport, setGeneratingReport] = useState(false)
+
+  async function handleDownloadReport() {
+    setGeneratingReport(true)
+    const [{ data: allSubs }, { data: allDisps }] = await Promise.all([
+      supabase.from('subcontracts').select('*, vendors(name, phone)').eq('job_id', id).order('created_at'),
+      supabase.from('dispatches').select('*').eq('job_id', id).order('dispatch_date'),
+    ])
+    const html = generateJobReport({
+      job, unit, stageLog, comments,
+      subcontracts: allSubs ?? [],
+      dispatches:   allDisps ?? [],
+    })
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    setGeneratingReport(false)
+  }
 
   // Vendor section toggle
   const [vendorExpanded, setVendorExpanded] = useState(false)
@@ -459,12 +480,28 @@ export default function JobDetail() {
 
       {/* Header */}
       <div className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500 mb-2">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Jobs
-        </button>
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500">
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Jobs
+          </button>
+          {job.status === 'dispatched' && (
+            <button
+              onClick={handleDownloadReport}
+              disabled={generatingReport}
+              className="flex items-center gap-1.5 text-xs text-blue-600 font-medium disabled:opacity-50"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {generatingReport ? 'Generating...' : 'Download Report'}
+            </button>
+          )}
+        </div>
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-xs text-gray-400 font-mono">{job.job_number}</p>
