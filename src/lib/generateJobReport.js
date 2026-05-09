@@ -58,12 +58,7 @@ export function generateJobReport({ job, unit, stageLog, subcontracts, dispatche
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;background:#fff;font-size:13px}
     @page{size:A4;margin:18mm 20mm}
-    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}
-    .no-print{position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;padding:12px 24px;display:flex;gap:12px;align-items:center;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
-    .no-print button{background:#fff;color:#1e40af;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer}
-    .no-print .close{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);margin-left:auto}
-    .page{padding-top:52px}
-    @media print{.page{padding-top:0}}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     /* Header */
     .report-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:2.5px solid #2563EB;margin-bottom:20px}
     .logo-area{display:flex;align-items:center;gap:10px}
@@ -246,12 +241,6 @@ export function generateJobReport({ job, unit, stageLog, subcontracts, dispatche
   <style>${css}</style>
 </head>
 <body>
-  <div class="no-print">
-    <span style="font-weight:600">Job Report — ${job.job_number}</span>
-    <button onclick="window.print()">🖨️ Print / Save PDF</button>
-    <button class="close" onclick="window.close()">✕ Close</button>
-  </div>
-
   <div class="page">
     <!-- Report header -->
     <div class="report-header">
